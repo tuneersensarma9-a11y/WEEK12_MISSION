@@ -1,58 +1,95 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const cors = require("cors");
+import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
+import "./App.css";
 
-const app = express();
+const socket = io("https://week12-mission.onrender.com/");
 
-app.use(cors());
+function App() {
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
 
-const server = http.createServer(app);
+  useEffect(() => {
+    socket.on("receive_message", (data) => {
+      setMessages((prev) => [...prev, data]);
+    });
 
-const io = new Server(server, {
-  cors: {
-  origin: [
-    "http://localhost:5173",
-    "https://week12-mission.onrender.com/"
-  ],
-  methods: ["GET", "POST"],
-},
-});
+    socket.on("user_typing", () => {
+      setIsTyping(true);
+    });
 
-io.on("connection", (socket) => {
-  console.log(`Client Connected: ${socket.id}`);
+    socket.on("user_stopped_typing", () => {
+      setIsTyping(false);
+    });
 
- 
-  socket.on("send_message", (data) => {
-    console.log("Message Received:", data);
+    return () => {
+      socket.off("receive_message");
+      socket.off("user_typing");
+      socket.off("user_stopped_typing");
+    };
+  }, []);
 
-    
-    io.emit("receive_message", data);
-  });
+  const sendMessage = () => {
+    if (!message.trim()) return;
 
-  
-socket.on("typing", () => {
-  console.log("Typing event received");
-  socket.broadcast.emit("user_typing");
-});
+    socket.emit("send_message", message);
+    socket.emit("stop_typing");
 
-socket.on("stop_typing", () => {
-  console.log("Stop typing event received");
-  socket.broadcast.emit("user_stopped_typing");
-});
-  socket.on("disconnect", () => {
-    console.log(`Client Disconnected: ${socket.id}`);
-  });
-});
+    setMessage("");
+  };
 
-app.get("/", (req, res) => {
-  res.send("Socket.io Server Running");
-});
+  return (
+    <div className="app">
+      <div className="chat-container">
+        <div className="chat-header">
+          <h1>💬 Real-Time Chat Room</h1>
+          <p>Powered by Socket.io</p>
+        </div>
+
+        <div className="chat-body">
+          {messages.length === 0 ? (
+            <p className="empty">No messages yet...</p>
+          ) : (
+            messages.map((msg, index) => (
+              <div key={index} className="message">
+                {msg}
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="chat-footer">
+          {isTyping && (
+            <p className="typing-text">
+              Someone is typing...
+            </p>
+          )}
+
+          <input
+            type="text"
+            placeholder="Type your message..."
+            value={message}
+            onChange={(e) => {
+              setMessage(e.target.value);
+
+              if (e.target.value.trim() !== "") {
+                socket.emit("typing");
+              } else {
+                socket.emit("stop_typing");
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                sendMessage();
+              }
+            }}
+          />
+
+          <button onClick={sendMessage}>Send</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default App;
-
-const PORT = 5000;
-
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
