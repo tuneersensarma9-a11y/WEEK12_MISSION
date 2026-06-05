@@ -49,6 +49,8 @@ app.get("/", (req, res) => {
   res.send("Socket.io Server Running");
 });
 
+export default App;
+
 const PORT = 5000;
 
 server.listen(PORT, () => {
